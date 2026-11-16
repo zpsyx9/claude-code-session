@@ -8,6 +8,7 @@ import { TokenEvent } from './session/tokenActivity';
 import { matchSessionByTabLabel } from './session/tabMatch';
 import { Dismissed, visibleSessions, dismiss, forgetStale } from './session/dismissed';
 import { GitActivity, parseReflog, mergeActivity } from './session/gitActivity';
+import { isValidPluginKey, writeEnabledPlugin } from './session/claudeEnvironment';
 
 export class Panel implements vscode.WebviewViewProvider {
   private static instance: Panel | undefined;
@@ -172,6 +173,9 @@ export class Panel implements vscode.WebviewViewProvider {
         vscode.env.clipboard.writeText(msg.name);
         vscode.window.showInformationMessage(`Copied ${msg.name} to clipboard`);
       }
+    }
+    if (msg.type === 'togglePlugin' && typeof msg.pluginKey === 'string' && typeof msg.enabled === 'boolean') {
+      this.togglePlugin(msg.pluginKey, msg.enabled);
     }
     if (msg.type === 'dismissSession' && msg.sessionId) {
       this.dismissSession(msg.sessionId);
@@ -355,6 +359,31 @@ export class Panel implements vscode.WebviewViewProvider {
   sendEnvData(data: EnvData): void {
     this.lastEnvData = data;
     this.postMessage({ type: 'envData', data });
+  }
+
+  private togglePlugin(pluginKey: string, enabled: boolean): void {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) {
+      vscode.window.showWarningMessage('Open a folder to toggle a plugin for this workspace.');
+      return;
+    }
+    if (!isValidPluginKey(pluginKey)) { return; }
+    const file = path.join(root, '.claude', 'settings.local.json');
+    try {
+      writeEnabledPlugin(file, pluginKey, enabled);
+    } catch (err) {
+      vscode.window.showErrorMessage(`Could not update ${file}: ${(err as Error).message}`);
+      return;
+    }
+    if (this.lastEnvData) {
+      const skills = this.lastEnvData.skills.map(s =>
+        s.pluginKey === pluginKey ? { ...s, enabled } : s
+      );
+      this.sendEnvData({ ...this.lastEnvData, skills });
+    }
+    vscode.window.showInformationMessage(
+      `${pluginKey} ${enabled ? 'enabled' : 'disabled'} for this workspace. Takes effect in the next Claude Code session.`
+    );
   }
 
   private debouncedSendProjectInfo(): void {

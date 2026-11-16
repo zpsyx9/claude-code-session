@@ -95,8 +95,8 @@ export class SessionManager {
     return getMcpServersImpl();
   }
 
-  getSkills(): SkillInfo[] {
-    return getSkillsImpl();
+  getSkills(workspaceRoot?: string): SkillInfo[] {
+    return getSkillsImpl(workspaceRoot);
   }
 
   getInstalledClis(): CliInfo[] {

@@ -1119,8 +1119,29 @@ function renderSkills() {
     const desc = s.description
       ? '<div class="skill-desc">' + s.description + '</div>'
       : '';
-    return '<div class="skill-item" data-source="' + s.source + '" onclick="vscodeApi.postMessage({type:\'inputSkill\',name:\'/' + s.name + '\'})"><div><span class="skill-name">/' + s.name + '</span>' + badge + '</div>' + desc + '</div>';
+    const toggle = s.pluginKey
+      ? '<button class="plugin-toggle" data-plugin-key="' + escAttr(s.pluginKey) + '" data-enabled="' + (s.enabled ? 'true' : 'false') + '"'
+        + ' title="' + escAttr(s.pluginKey) + ' - ' + (s.enabled ? 'on' : 'off') + ' in this workspace (.claude/settings.local.json)">'
+        + (s.enabled ? 'ON' : 'OFF') + '</button>'
+      : '';
+    return '<div class="skill-item" data-source="' + s.source + '" onclick="vscodeApi.postMessage({type:\'inputSkill\',name:\'/' + s.name + '\'})"><div class="skill-head"><span class="skill-name">/' + s.name + '</span>' + badge + toggle + '</div>' + desc + '</div>';
   }).join('');
+
+  // Listeners on the button itself so stopPropagation runs before the row's inline onclick.
+  list.querySelectorAll('.plugin-toggle').forEach(btn => {
+    btn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      vscodeApi.postMessage({
+        type: 'togglePlugin',
+        pluginKey: btn.dataset.pluginKey,
+        enabled: btn.dataset.enabled !== 'true',
+      });
+    });
+  });
+}
+
+function escAttr(t) {
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
 
 document.getElementById('skills-search').addEventListener('input', renderSkills);

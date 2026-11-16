@@ -45,7 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
       recentFiles:    sessionManager!.getRecentFiles(),
       mcpServers:     sessionManager!.getMcpServers(),
       recentSessions: sessionManager!.getRecentSessions(),
-      skills:         sessionManager!.getSkills(),
+      skills:         sessionManager!.getSkills(workspaceRoots()[0]),
       clis:           sessionManager!.getInstalledClis(),
     });
     panel!.sendProjectInfo();
