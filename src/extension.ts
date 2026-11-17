@@ -1,14 +1,45 @@
 import * as vscode from 'vscode';
+import { spawn } from 'child_process';
 import { SessionManager } from './sessionManager';
 import { Panel } from './panel';
 
 const TOKEN_WINDOW_HOURS = 24;
+const CLAUDE_UPDATE_KEY = 'lastClaudeUpdate';
+// Each VS Code window activates the extension; this stops parallel updates when several open at once.
+const CLAUDE_UPDATE_MIN_GAP_MS = 60 * 60 * 1000;
+
+function updateClaudeCli(context: vscode.ExtensionContext): void {
+  if (!vscode.workspace.getConfiguration('claudeCodeSession').get<boolean>('updateClaudeOnStartup', true)) { return; }
+  const last = context.globalState.get<number>(CLAUDE_UPDATE_KEY, 0);
+  if (Date.now() - last < CLAUDE_UPDATE_MIN_GAP_MS) { return; }
+  void context.globalState.update(CLAUDE_UPDATE_KEY, Date.now());
+
+  const out = vscode.window.createOutputChannel('Claude Code Session');
+  context.subscriptions.push(out);
+  out.appendLine(`[${new Date().toLocaleString()}] claude update`);
+  try {
+    // shell on Windows so an npm-installed claude.cmd also resolves.
+    const child = spawn('claude', ['update'], { shell: process.platform === 'win32', windowsHide: true });
+    child.stdout.on('data', d => out.append(String(d)));
+    child.stderr.on('data', d => out.append(String(d)));
+    child.on('error', err => out.appendLine(`claude update failed to start: ${err.message}`));
+    child.on('close', code => {
+      out.appendLine(`claude update exited with code ${code}`);
+      if (code !== 0) {
+        vscode.window.showWarningMessage('claude update failed. See Output -> Claude Code Session.');
+      }
+    });
+  } catch (err) {
+    out.appendLine(`claude update failed to start: ${(err as Error).message}`);
+  }
+}
 
 let sessionManager: SessionManager | undefined;
 let panel: Panel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   panel = Panel.createProvider(context);
+  updateClaudeCli(context);
 
   // Each VS Code window runs its own extension host, so scoping the manager
   // to this window's workspace folders makes each window track its own project.

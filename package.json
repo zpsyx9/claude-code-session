@@ -36,6 +36,16 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Claude Code Session",
+      "properties": {
+        "claudeCodeSession.updateClaudeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run `claude update` when VS Code starts (at most once per hour across windows)."
+        }
+      }
+    },
     "commands": [
       {
         "command": "claude-code-session.open",

@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, execFileSync } from 'child_process';
+import * as os from 'os';
+import { execSync, execFileSync, spawn } from 'child_process';
 import { SessionState, UsageStats } from './sessionManager';
-import { ExtensionToWebview, WebviewToExtension, EnvData } from './shared/messages';
+import { ExtensionToWebview, WebviewToExtension, EnvData, ConfigSyncState } from './shared/messages';
 import { TokenEvent } from './session/tokenActivity';
 import { matchSessionByTabLabel } from './session/tabMatch';
 import { Dismissed, visibleSessions, dismiss, forgetStale } from './session/dismissed';
@@ -31,9 +32,64 @@ export class Panel implements vscode.WebviewViewProvider {
   private dismissed: Dismissed = {};
   private static readonly DISMISSED_KEY = 'dismissedSessions';
 
+  private static readonly SYNC_SCRIPT = path.join(os.homedir(), 'Github', 'claude-config', 'sync.sh');
+  private static readonly SYNC_STATE  = path.join(os.homedir(), '.claude', 'sync-state.json');
+  private configSyncRunning = false;
+  private readonly onSyncStateFile = () => this.sendConfigSync();
+
   private constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.dismissed = forgetStale(context.workspaceState.get<Dismissed>(Panel.DISMISSED_KEY, {}));
+    // The hooks in other Claude sessions also write this file, not only our button.
+    fs.watchFile(Panel.SYNC_STATE, { interval: 5000 }, this.onSyncStateFile);
+  }
+
+  private readConfigSync(): ConfigSyncState {
+    const state: ConfigSyncState = {
+      available: fs.existsSync(Panel.SYNC_SCRIPT),
+      running: this.configSyncRunning,
+      ts: 0, ok: false, okTs: 0, host: '', msg: '',
+    };
+    try {
+      const raw = JSON.parse(fs.readFileSync(Panel.SYNC_STATE, 'utf8'));
+      state.ts   = Number(raw.ts) || 0;
+      state.ok   = raw.ok === true;
+      state.okTs = Number(raw.okTs) || 0;
+      state.host = String(raw.host ?? '');
+      state.msg  = String(raw.msg ?? '');
+    } catch { /* no sync has run on this PC yet */ }
+    return state;
+  }
+
+  private sendConfigSync(): void {
+    this.postMessage({ type: 'configSync', state: this.readConfigSync() });
+  }
+
+  private static bashPath(): string {
+    if (process.platform !== 'win32') { return 'bash'; }
+    const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    return fs.existsSync(gitBash) ? gitBash : 'bash';
+  }
+
+  private runConfigSync(): void {
+    if (this.configSyncRunning || !fs.existsSync(Panel.SYNC_SCRIPT)) { return; }
+    this.configSyncRunning = true;
+    this.sendConfigSync();
+    const done = () => {
+      this.configSyncRunning = false;
+      const state = this.readConfigSync();
+      this.postMessage({ type: 'configSync', state });
+      if (!state.ok) {
+        vscode.window.showErrorMessage(`claude-config sync failed: ${state.msg || 'see ~/.claude/sync.log'}`);
+      }
+    };
+    try {
+      const child = spawn(Panel.bashPath(), [Panel.SYNC_SCRIPT, '--quick'], { stdio: 'ignore', windowsHide: true });
+      child.on('error', done);
+      child.on('close', done);
+    } catch {
+      done();
+    }
   }
 
   static createProvider(context: vscode.ExtensionContext): Panel {
@@ -125,8 +181,12 @@ export class Panel implements vscode.WebviewViewProvider {
           windowHours: this.lastTokenWindowHours,
         });
       }
+      this.sendConfigSync();
       // Then trigger fresh fetch on top
       if (this.onReadyCallback) { this.onReadyCallback(); }
+    }
+    if (msg.type === 'runConfigSync') {
+      this.runConfigSync();
     }
     if (msg.type === 'refreshUsage') {
       this.sendSessions(this.sessions);
@@ -525,6 +585,7 @@ export class Panel implements vscode.WebviewViewProvider {
       this.projectInfoTimer = null;
     }
     this.disposables.forEach(d => d.dispose());
+    fs.unwatchFile(Panel.SYNC_STATE, this.onSyncStateFile);
     this.panel?.dispose();
     Panel.instance = undefined;
   }

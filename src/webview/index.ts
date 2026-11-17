@@ -411,7 +411,52 @@ window.addEventListener('message', e => {
     renderTokenActivity(msg.events || []);
   }
 
+  if (msg.type === 'configSync') {
+    _configSync = msg.state;
+    renderConfigSync();
+  }
+
 });
+
+// ─── claude-config sync button ─────────────────────────────────────────────
+const CONFIG_SYNC_STALE_MS = 12 * 3600_000;
+let _configSync = null;
+
+function shortAgo(ts) {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return 'now';
+  if (secs < 3600) return Math.floor(secs / 60) + 'm';
+  if (secs < 86400) return Math.floor(secs / 3600) + 'h';
+  return Math.floor(secs / 86400) + 'd';
+}
+
+function renderConfigSync() {
+  const btn = document.getElementById('config-sync');
+  const text = document.getElementById('config-sync-text');
+  const s = _configSync;
+  if (!btn || !text || !s) return;
+  btn.hidden = !s.available;
+  if (!s.available) return;
+  const when = (ts) => ts ? new Date(ts).toLocaleString() : 'never';
+  let state, label;
+  if (s.running) {
+    state = 'running'; label = 'cfg ...';
+  } else if (!s.okTs && !s.ts) {
+    state = 'stale'; label = 'cfg never';
+  } else if (!s.ok) {
+    state = 'fail'; label = 'cfg FAIL';
+  } else {
+    state = Date.now() - s.okTs > CONFIG_SYNC_STALE_MS ? 'stale' : 'ok';
+    label = 'cfg ' + shortAgo(s.okTs);
+  }
+  btn.dataset.state = state;
+  text.textContent = label;
+  btn.title = 'claude-config sync - click to sync now\n'
+    + 'Last good: ' + when(s.okTs) + '\n'
+    + 'Last run: ' + when(s.ts) + '\n'
+    + 'Result: ' + (s.msg || '-');
+}
+setInterval(renderConfigSync, 15_000);
 
 // ─── Duration ticker — updates elapsed time every 1s ───────────────────────
 setInterval(() => {

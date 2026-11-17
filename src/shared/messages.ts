@@ -33,13 +33,25 @@ export interface EnvData {
   clis:           CliInfo[];
 }
 
+// Read from ~/.claude/sync-state.json, written by claude-config/sync.sh. Times are epoch ms.
+export interface ConfigSyncState {
+  available: boolean;
+  running:   boolean;
+  ts:        number;
+  ok:        boolean;
+  okTs:      number;
+  host:      string;
+  msg:       string;
+}
+
 export type ExtensionToWebview =
   | { type: 'sessionsUpdate'; sessions: SessionState[] }
   | { type: 'projectInfo';    data: ProjectInfo }
   | { type: 'envData';        data: EnvData }
   | { type: 'usageUpdate';    usage: UsageStats }
   | { type: 'tokenActivity';  events: TokenEvent[]; windowHours: number }
-  | { type: 'focusSession';   sessionId: string };
+  | { type: 'focusSession';   sessionId: string }
+  | { type: 'configSync';     state: ConfigSyncState };
 
 export type WebviewToExtension =
   | { type: 'ready' }
@@ -52,4 +64,5 @@ export type WebviewToExtension =
   | { type: 'togglePlugin'; pluginKey: string; enabled: boolean }
   | { type: 'openSession'; sessionId: string }
   | { type: 'dismissSession'; sessionId: string }
-  | { type: 'newSession' };
+  | { type: 'newSession' }
+  | { type: 'runConfigSync' };

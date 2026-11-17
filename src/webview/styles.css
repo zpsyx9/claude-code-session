@@ -1202,6 +1202,33 @@ body::before {
 @media (max-width: 220px) { .usage-chip-label { display: none; } }
 @media (prefers-reduced-motion: reduce) { .usage-refresh:hover { transform: none; } }
 
+.config-sync {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.config-sync[hidden] { display: none; }
+.config-sync:hover { color: var(--accent); border-color: var(--accent); }
+.config-sync-icon { width: 10px; height: 10px; }
+.config-sync[data-state="stale"] { color: #e0a030; }
+.config-sync[data-state="fail"] { color: #ff5555; border-color: #ff5555; }
+.config-sync[data-state="running"] { cursor: progress; }
+.config-sync[data-state="running"] .config-sync-icon { animation: config-sync-spin 1s linear infinite; }
+@keyframes config-sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .config-sync[data-state="running"] .config-sync-icon { animation: none; } }
+
 
 /* ===== New session: big, full-width ===== */
 .new-session-btn {
