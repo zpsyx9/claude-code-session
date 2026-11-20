@@ -45,10 +45,13 @@ export function defaultSession(
     outputTokens:   0,
     lastInputTokens:  0,
     lastOutputTokens: 0,
+    lastCacheRead:    0,
+    lastCacheCreate:  0,
     contextPct:     0,
     currentFile:    '',
     turnCount:      0,
     toolUseCount:   0,
+    toolErrorCount: 0,
     lastAction:     '',
     needsInput:     false,
     activity:       'idle',
@@ -183,13 +186,16 @@ function applyEntry(
 
     const msg = obj['message'] as Record<string, unknown> | undefined;
     const content = msg?.['content'] ?? obj['content'];
-    const hasToolResult = Array.isArray(content) &&
-      content.some(
-        (c: unknown) =>
-          typeof c === 'object' &&
-          c !== null &&
-          (c as Record<string, unknown>)['type'] === 'tool_result'
-      );
+    const toolResults = Array.isArray(content)
+      ? content.filter(
+          (c: unknown): c is Record<string, unknown> =>
+            typeof c === 'object' &&
+            c !== null &&
+            (c as Record<string, unknown>)['type'] === 'tool_result'
+        )
+      : [];
+    const hasToolResult = toolResults.length > 0;
+    s.toolErrorCount += toolResults.filter(c => c['is_error'] === true).length;
 
     s.needsInput = false;
     if (!hasToolResult) {
@@ -259,6 +265,8 @@ function applyEntry(
         s.lastInputTokens = turnInput;
         s.outputTokens += output;
         s.lastOutputTokens = output;
+        s.lastCacheRead = cacheRead;
+        s.lastCacheCreate = cacheCreate;
 
         const speed = usage['speed'] as string | undefined;
         if (speed) { s.speed = speed; }

@@ -389,6 +389,7 @@ export class SessionManager {
         st.inputTokens = 0;  st.lastInputTokens = 0;
         st.outputTokens = 0; st.lastOutputTokens = 0;
         st.turnCount = 0;    st.toolUseCount = 0;
+        st.toolErrorCount = 0;
       }
 
       const readStart  = entry.fileOffset;

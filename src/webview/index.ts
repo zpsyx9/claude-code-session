@@ -132,10 +132,17 @@ function buildCard(s, focused) {
   card.title = [
     s.currentFile && 'File: ' + s.currentFile,
     'Source: ' + (ENTRYPOINT_LABELS[s.entrypoint] || s.entrypoint || '\u2014'),
-    'Turns: ' + (s.turnCount || '\u2014') + '  Tools: ' + (s.toolUseCount || '\u2014'),
+    'Turns: ' + (s.turnCount || '\u2014') + '  Tools: ' + (s.toolUseCount || '\u2014')
+      + '  Errors: ' + (s.toolErrorCount || 0),
     'In: ' + fmtTokens(s.lastInputTokens) + ' / ' + fmtTokens(s.inputTokens),
     'Out: ' + fmtTokens(s.lastOutputTokens) + ' / ' + fmtTokens(s.outputTokens),
+    s.lastInputTokens > 0 && 'Last req: ' + fmtTokens(s.lastCacheRead) + ' cache, '
+      + fmtTokens(s.lastCacheCreate) + ' wrote, '
+      + fmtTokens(s.lastInputTokens - s.lastCacheRead - s.lastCacheCreate) + ' new ('
+      + Math.round(100 * s.lastCacheRead / s.lastInputTokens) + '% hit)',
   ].filter(Boolean).join('\n');
+  const errors = s.toolErrorCount || 0;
+  const errRate = s.toolUseCount ? Math.round(100 * errors / s.toolUseCount) : 0;
 
   card.innerHTML = `
     <div class="card-top">
@@ -149,6 +156,9 @@ function buildCard(s, focused) {
     <div class="card-meta">
       <span class="model-chip">${modelLabel(s.model)}</span>
       <span class="card-mode" title="${modeFull}">${modeShort}</span>
+      ${errors > 0
+        ? `<span class="card-errors" title="Tool errors: ${errors} of ${s.toolUseCount} calls (${errRate}%)">${errors} err</span>`
+        : ''}
       <span class="card-started">${fmtStarted(s.startedAt)}</span>
     </div>
     <button class="card-dismiss" title="Remove from list" aria-label="Remove session from list">\u00d7</button>

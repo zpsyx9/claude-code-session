@@ -23,10 +23,13 @@ export interface SessionState {
   outputTokens:   number;
   lastInputTokens:  number;
   lastOutputTokens: number;
+  lastCacheRead:    number;
+  lastCacheCreate:  number;
   contextPct:     number;
   currentFile:    string;
   turnCount:      number;
   toolUseCount:   number;
+  toolErrorCount: number;
   lastAction:     string;
   needsInput:     boolean;
   activity:       ActivityState;

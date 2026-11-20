@@ -180,4 +180,41 @@ describe('parseLines', () => {
     expect(entry.state.activity).toBe('tooling');
     expect(entry.state.lastAction).toBe('Editing b.ts');
   });
+
+  it('counts tool_result blocks with is_error true', () => {
+    const entry = newEntry();
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          { type: 'tool_result', is_error: true, content: 'boom' },
+          { type: 'tool_result', is_error: false, content: 'ok' },
+          { type: 'tool_result', content: 'ok' },
+        ],
+      },
+    });
+    parseLines(line + '\n' + line, entry);
+    expect(entry.state.toolErrorCount).toBe(2);
+    expect(entry.state.turnCount).toBe(0);
+  });
+
+  it('keeps the last request cache split', () => {
+    const entry = newEntry();
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'm1',
+        usage: {
+          input_tokens: 10,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 5000,
+          output_tokens: 50,
+        },
+      },
+    });
+    parseLines(line, entry);
+    expect(entry.state.lastCacheRead).toBe(5000);
+    expect(entry.state.lastCacheCreate).toBe(200);
+    expect(entry.state.lastInputTokens).toBe(5210);
+  });
 });
