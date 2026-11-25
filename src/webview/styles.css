@@ -149,6 +149,9 @@ body::before {
 #skills-section          .section-header,
 #skills-section          .section-header .section-chevron,
 #skills-section          .section-header .section-icon    { color: #eab308; }  /* yellow */
+#plugins-section         .section-header,
+#plugins-section         .section-header .section-chevron,
+#plugins-section         .section-header .section-icon    { color: #84cc16; }  /* lime */
 #cli-section             .section-header,
 #cli-section             .section-header .section-chevron,
 #cli-section             .section-header .section-icon    { color: #14b8a6; }  /* teal */

@@ -57,7 +57,7 @@ Webview -> Extension (via `vscodeApi.postMessage`):
 - `{ type: 'openSession', sessionId }` - bring the session forward (see below)
 - `{ type: 'dismissSession', sessionId }` - hide it until new activity (also fired automatically when its tab closes)
 - `{ type: 'newSession' }`, `openUrl`, `openFile`, `openFolder`, `inputSkill`
-- `{ type: 'togglePlugin', pluginKey, enabled }` - writes `enabledPlugins[pluginKey]` to the first workspace folder's `.claude/settings.local.json` (Skills tab ON/OFF button on plugin rows)
+- `{ type: 'togglePlugin', pluginKey, enabled }` - writes `enabledPlugins[pluginKey]` to the first workspace folder's `.claude/settings.local.json` (ON/OFF button on Plugins section rows)
 
 ### Session focus strategy (`focusSession`)
 

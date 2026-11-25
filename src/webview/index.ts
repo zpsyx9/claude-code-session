@@ -1114,14 +1114,17 @@ function updateAllAnimations(sessions) {
   }
 }
 
-// ─── Skills search & filter ─────────────────────────────────────────────────
+// ─── Skills & Plugins ───────────────────────────────────────────────────────
+// User skills render in the Skills section; plugin skills in the Plugins section.
+let _allSkills = [];
+
+/* Search & filter: disabled for now (re-enable together with the block in body.html).
 // Fixed display order matches SKILL_CATEGORIES in src/session/categorize.ts.
 const SKILL_CATEGORY_ORDER = [
   'Planning', 'Design', 'Review', 'Testing',
   'SEO & Content', 'Automation', 'Integrations', 'Dev Tools', 'Other',
 ];
 
-let _allSkills = [];
 let _skillFilter = 'all';
 let _skillCategory = 'all';
 let _categoryChipsReady = false;
@@ -1148,29 +1151,41 @@ function ensureCategoryChips() {
   _categoryChipsReady = true;
 }
 
+function matchesSkillFilters(s) {
+  const q = ((document.getElementById('skills-search') || {}).value || '').toLowerCase();
+  if (_skillFilter !== 'all' && s.source !== _skillFilter) return false;
+  if (_skillCategory !== 'all' && s.category !== _skillCategory) return false;
+  if (q && !s.name.toLowerCase().includes(q) && !(s.description || '').toLowerCase().includes(q)) return false;
+  return true;
+}
+
+document.getElementById('skills-search').addEventListener('input', renderSkills);
+
+document.querySelectorAll('.skills-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.skills-filter-btn').forEach(b => b.dataset.active = 'false');
+    btn.dataset.active = 'true';
+    _skillFilter = btn.dataset.filter;
+    renderSkills();
+  });
+});
+*/
+
 function renderSkills() {
-  ensureCategoryChips();
-  const list = document.getElementById('skills-list');
+  renderSkillList('skills-list', _allSkills.filter(s => s.source !== 'plugin'), 'No user skills');
+  renderSkillList('plugins-list', _allSkills.filter(s => s.source === 'plugin'), 'No plugin skills');
+}
+
+function renderSkillList(listId, skills, emptyText) {
+  const list = document.getElementById(listId);
   if (!list) return;
 
-  const query = (document.getElementById('skills-search') || {}).value || '';
-  const q = query.toLowerCase();
-  const filtered = _allSkills.filter(s => {
-    if (_skillFilter !== 'all' && s.source !== _skillFilter) return false;
-    if (_skillCategory !== 'all' && s.category !== _skillCategory) return false;
-    if (q && !s.name.toLowerCase().includes(q) && !(s.description || '').toLowerCase().includes(q)) return false;
-    return true;
-  });
-
-  if (filtered.length === 0) {
-    list.innerHTML = '<div class="cap-item" style="color:var(--text-muted);">No skills match</div>';
+  if (skills.length === 0) {
+    list.innerHTML = '<div class="cap-item" style="color:var(--text-muted);">' + emptyText + '</div>';
     return;
   }
 
-  list.innerHTML = filtered.map(s => {
-    const badge = s.source === 'user'
-      ? '<span class="skill-badge skill-badge-user">USER</span>'
-      : '<span class="skill-badge skill-badge-plugin">PLUGIN</span>';
+  list.innerHTML = skills.map(s => {
     const desc = s.description
       ? '<div class="skill-desc">' + s.description + '</div>'
       : '';
@@ -1179,7 +1194,7 @@ function renderSkills() {
         + ' title="' + escAttr(s.pluginKey) + ' - ' + (s.enabled ? 'on' : 'off') + ' in this workspace (.claude/settings.local.json)">'
         + (s.enabled ? 'ON' : 'OFF') + '</button>'
       : '';
-    return '<div class="skill-item" data-source="' + s.source + '" onclick="vscodeApi.postMessage({type:\'inputSkill\',name:\'/' + s.name + '\'})"><div class="skill-head"><span class="skill-name">/' + s.name + '</span>' + badge + toggle + '</div>' + desc + '</div>';
+    return '<div class="skill-item" data-source="' + s.source + '" onclick="vscodeApi.postMessage({type:\'inputSkill\',name:\'/' + s.name + '\'})"><div class="skill-head"><span class="skill-name">/' + s.name + '</span>' + toggle + '</div>' + desc + '</div>';
   }).join('');
 
   // Listeners on the button itself so stopPropagation runs before the row's inline onclick.
@@ -1198,17 +1213,6 @@ function renderSkills() {
 function escAttr(t) {
   return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
-
-document.getElementById('skills-search').addEventListener('input', renderSkills);
-
-document.querySelectorAll('.skills-filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.skills-filter-btn').forEach(b => b.dataset.active = 'false');
-    btn.dataset.active = 'true';
-    _skillFilter = btn.dataset.filter;
-    renderSkills();
-  });
-});
 
 // ─── CLI Tools ──────────────────────────────────────────────────────────────
 function renderClis(clis) {
@@ -1318,6 +1322,9 @@ function restoreLayoutState() {
     for (const id of state.sectionOrder) {
       if (sections[id]) root.appendChild(sections[id]);
     }
+    // Sections added after the order was saved (e.g. Plugins) go right after Skills.
+    const plugins = sections['plugins-section'], skills = sections['skills-section'];
+    if (plugins && skills && !state.sectionOrder.includes('plugins-section')) skills.after(plugins);
   }
   if (state.sectionCollapsed) {
     for (const [id, val] of Object.entries(state.sectionCollapsed)) {
