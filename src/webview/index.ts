@@ -1187,17 +1187,16 @@ function renderSkillList(listId, skills, emptyText) {
 
   list.innerHTML = skills.map(s => {
     const desc = s.description
-      ? '<div class="skill-desc">' + s.description + '</div>'
+      ? '<div class="skill-desc">' + esc(s.description) + '</div>'
       : '';
     const toggle = s.pluginKey
       ? '<button class="plugin-toggle" data-plugin-key="' + escAttr(s.pluginKey) + '" data-enabled="' + (s.enabled ? 'true' : 'false') + '"'
         + ' title="' + escAttr(s.pluginKey) + ' - ' + (s.enabled ? 'on' : 'off') + ' in this workspace (.claude/settings.local.json)">'
         + (s.enabled ? 'ON' : 'OFF') + '</button>'
       : '';
-    return '<div class="skill-item" data-source="' + s.source + '" onclick="vscodeApi.postMessage({type:\'inputSkill\',name:\'/' + s.name + '\'})"><div class="skill-head"><span class="skill-name">/' + s.name + '</span>' + toggle + '</div>' + desc + '</div>';
+    return '<div class="skill-item" data-source="' + s.source + '" data-name="' + escAttr(s.name) + '" data-path="' + escAttr(s.path || '') + '" data-desc="' + escAttr(s.description || '') + '"><div class="skill-head"><span class="skill-name">/' + s.name + '</span>' + toggle + '</div>' + desc + '</div>';
   }).join('');
 
-  // Listeners on the button itself so stopPropagation runs before the row's inline onclick.
   list.querySelectorAll('.plugin-toggle').forEach(btn => {
     btn.addEventListener('click', ev => {
       ev.stopPropagation();
@@ -1213,6 +1212,65 @@ function renderSkillList(listId, skills, emptyText) {
 function escAttr(t) {
   return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
+
+// Single click waits out the double-click window so a double-click opens the file without also inserting the skill.
+const SKILL_DBLCLICK_MS = 250;
+const SKILL_TOOLTIP_DELAY_MS = 500;
+let _skillClickTimer = null;
+let _skillTipTimer = null;
+const skillTip = document.createElement('div');
+skillTip.className = 'skill-tooltip';
+skillTip.hidden = true;
+document.body.appendChild(skillTip);
+
+function hideSkillTip() {
+  clearTimeout(_skillTipTimer);
+  skillTip.hidden = true;
+}
+
+['skills-list', 'plugins-list'].forEach(id => {
+  const list = document.getElementById(id);
+  if (!list) return;
+
+  list.addEventListener('click', ev => {
+    const item = ev.target.closest('.skill-item');
+    if (!item || ev.target.closest('.plugin-toggle')) return;
+    clearTimeout(_skillClickTimer);
+    _skillClickTimer = setTimeout(() => {
+      vscodeApi.postMessage({ type: 'inputSkill', name: '/' + item.dataset.name });
+    }, SKILL_DBLCLICK_MS);
+  });
+
+  list.addEventListener('dblclick', ev => {
+    const item = ev.target.closest('.skill-item');
+    if (!item || ev.target.closest('.plugin-toggle')) return;
+    clearTimeout(_skillClickTimer);
+    hideSkillTip();
+    if (item.dataset.path) vscodeApi.postMessage({ type: 'openSkillFile', path: item.dataset.path });
+  });
+
+  list.addEventListener('mouseover', ev => {
+    const item = ev.target.closest('.skill-item');
+    if (!item || item.contains(ev.relatedTarget)) return;
+    hideSkillTip();
+    if (!item.dataset.desc) return;
+    _skillTipTimer = setTimeout(() => {
+      skillTip.textContent = item.dataset.desc;
+      skillTip.hidden = false;
+      const r = item.getBoundingClientRect();
+      const tipH = skillTip.offsetHeight;
+      const below = r.bottom + 4;
+      skillTip.style.left = Math.max(4, r.left) + 'px';
+      skillTip.style.top = (below + tipH > window.innerHeight ? Math.max(4, r.top - tipH - 4) : below) + 'px';
+    }, SKILL_TOOLTIP_DELAY_MS);
+  });
+
+  list.addEventListener('mouseout', ev => {
+    const item = ev.target.closest('.skill-item');
+    if (item && !item.contains(ev.relatedTarget)) hideSkillTip();
+  });
+});
+window.addEventListener('scroll', hideSkillTip, true);
 
 // ─── CLI Tools ──────────────────────────────────────────────────────────────
 function renderClis(clis) {

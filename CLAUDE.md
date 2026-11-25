@@ -57,6 +57,7 @@ Webview -> Extension (via `vscodeApi.postMessage`):
 - `{ type: 'openSession', sessionId }` - bring the session forward (see below)
 - `{ type: 'dismissSession', sessionId }` - hide it until new activity (also fired automatically when its tab closes)
 - `{ type: 'newSession' }`, `openUrl`, `openFile`, `openFolder`, `inputSkill`
+- `{ type: 'openSkillFile', path }` - opens a SKILL.md (double-click a Skills or Plugins row). Host opens only paths it sent in `envData.skills`. Downloaded plugin skills get a `Source: <url>` CodeLens on line 1 (`extension.ts`, URL from `pluginFileUrl` in `claudeEnvironment.ts`)
 - `{ type: 'togglePlugin', pluginKey, enabled }` - writes `enabledPlugins[pluginKey]` to the first workspace folder's `.claude/settings.local.json` (ON/OFF button on Plugins section rows)
 
 ### Session focus strategy (`focusSession`)

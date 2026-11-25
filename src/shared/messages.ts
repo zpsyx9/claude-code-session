@@ -29,7 +29,7 @@ export interface EnvData {
   recentFiles:    string[];
   mcpServers:     string[];
   recentSessions: { sessionId: string; title: string; lastSeen: number; activity: string }[];
-  skills:         { name: string; source: string; description: string; category: SkillCategory; pluginKey?: string; enabled?: boolean }[];
+  skills:         { name: string; source: string; description: string; category: SkillCategory; pluginKey?: string; enabled?: boolean; path: string; sourceUrl?: string }[];
   clis:           CliInfo[];
 }
 
@@ -62,6 +62,7 @@ export type WebviewToExtension =
   | { type: 'openFolder';  path: string }
   | { type: 'inputSkill';  name: string }
   | { type: 'togglePlugin'; pluginKey: string; enabled: boolean }
+  | { type: 'openSkillFile'; path: string }
   | { type: 'openSession'; sessionId: string }
   | { type: 'dismissSession'; sessionId: string }
   | { type: 'newSession' }

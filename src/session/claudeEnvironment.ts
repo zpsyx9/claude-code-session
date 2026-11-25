@@ -24,6 +24,8 @@ export interface SkillInfo {
   category:    SkillCategory;
   pluginKey?:  string;
   enabled?:    boolean;
+  path:        string;
+  sourceUrl?:  string;
 }
 
 const PLUGIN_KEY_RE = /^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/;
@@ -88,14 +90,94 @@ function parseSkillDescription(filePath: string): string {
     const content = fs.readFileSync(filePath, 'utf-8');
     const match = content.match(/description:\s*>?\s*\n?\s*(.+?)(?:\n\S|\n---)/s);
     if (match) {
-      return match[1].replace(/\n\s*/g, ' ').trim().slice(0, 120);
+      return match[1].replace(/\n\s*/g, ' ').trim();
     }
     const singleLine = content.match(/description:\s*["']?(.+?)["']?\s*$/m);
     if (singleLine) {
-      return singleLine[1].trim().slice(0, 120);
+      return singleLine[1].trim();
     }
   } catch { /* ignore */ }
   return '';
+}
+
+type PluginSource = string | { source?: string; repo?: string; url?: string; path?: string; ref?: string; sha?: string };
+
+function repoWebUrl(source: PluginSource | undefined): string | undefined {
+  if (!source || typeof source === 'string') { return undefined; }
+  if (source.source === 'github' && source.repo) { return `https://github.com/${source.repo}`; }
+  if (source.url && /^https:\/\//.test(source.url)) { return source.url.replace(/\.git$/, '').replace(/\/$/, ''); }
+  return undefined;
+}
+
+/**
+ * Web URL of a downloaded plugin file. `relPath` is the file's path inside the
+ * plugin install folder. Returns the repo root when the host has no known blob URL form.
+ */
+export function pluginFileUrl(
+  pluginSource: PluginSource | undefined,
+  marketplaceSource: PluginSource | undefined,
+  installedSha: string | undefined,
+  relPath: string,
+): string | undefined {
+  let base: string | undefined;
+  let subdir = '';
+  let ref = installedSha;
+  if (typeof pluginSource === 'string') {
+    base = repoWebUrl(marketplaceSource);
+    subdir = pluginSource;
+  } else if (pluginSource) {
+    base = repoWebUrl(pluginSource);
+    subdir = pluginSource.path ?? '';
+    ref = ref || pluginSource.sha || pluginSource.ref;
+  }
+  if (!base) { return undefined; }
+  if (!/^https:\/\/github\.com\//.test(base)) { return base; }
+  const parts = [subdir, relPath]
+    .join('/')
+    .split(/[\\/]+/)
+    .filter(p => p && p !== '.');
+  return `${base}/blob/${ref || 'HEAD'}/${parts.join('/')}`;
+}
+
+function readJson(file: string): any {
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return undefined; }
+}
+
+interface PluginOrigin { installPath: string; sha?: string; pluginSource?: PluginSource; marketplaceSource?: PluginSource }
+
+function loadPluginOrigins(): Map<string, PluginOrigin> {
+  const origins = new Map<string, PluginOrigin>();
+  const pluginsDir = path.join(CLAUDE_DIR, 'plugins');
+  const installed = readJson(path.join(pluginsDir, 'installed_plugins.json'))?.plugins ?? {};
+  const marketplaces = readJson(path.join(pluginsDir, 'known_marketplaces.json')) ?? {};
+  for (const [key, entries] of Object.entries<any>(installed)) {
+    const [plugin, vendor] = key.split('@');
+    const mkt = marketplaces[vendor];
+    const mktFile = mkt?.installLocation ? readJson(path.join(mkt.installLocation, '.claude-plugin', 'marketplace.json')) : undefined;
+    const pluginSource = (mktFile?.plugins ?? []).find((p: any) => p?.name === plugin)?.source;
+    for (const e of Array.isArray(entries) ? entries : []) {
+      if (!e?.installPath) { continue; }
+      origins.set(normPath(e.installPath), {
+        installPath: e.installPath, sha: e.gitCommitSha, pluginSource, marketplaceSource: mkt?.source,
+      });
+    }
+  }
+  return origins;
+}
+
+export function normPath(p: string): string {
+  const n = path.resolve(p);
+  return process.platform === 'win32' ? n.toLowerCase() : n;
+}
+
+function sourceUrlFor(file: string, origins: Map<string, PluginOrigin>): string | undefined {
+  const target = normPath(file);
+  for (const [root, o] of origins) {
+    if (target.startsWith(root + path.sep)) {
+      return pluginFileUrl(o.pluginSource, o.marketplaceSource, o.sha, path.relative(o.installPath, file));
+    }
+  }
+  return undefined;
 }
 
 export function getMcpServers(): string[] {
@@ -117,6 +199,7 @@ export function getSkills(workspaceRoot?: string): SkillInfo[] {
   const skills: SkillInfo[] = [];
   const seen = new Set<string>();
   const enabledPlugins = mergeEnabledPlugins(pluginSettingsFiles(workspaceRoot));
+  const origins = loadPluginOrigins();
 
   try {
     const userSkillsDir = path.join(CLAUDE_DIR, 'skills');
@@ -126,7 +209,7 @@ export function getSkills(workspaceRoot?: string): SkillInfo[] {
         if (fs.existsSync(skillFile) && !seen.has(name)) {
           seen.add(name);
           const description = parseSkillDescription(skillFile);
-          skills.push({ name, source: 'user', description, category: categorizeSkill(name, description) });
+          skills.push({ name, source: 'user', description, category: categorizeSkill(name, description), path: skillFile });
         }
       }
     }
@@ -158,7 +241,7 @@ export function getSkills(workspaceRoot?: string): SkillInfo[] {
                     if (!seen.has(name) && fs.existsSync(sf)) {
                       seen.add(name);
                       const description = parseSkillDescription(sf);
-                      skills.push({ name, source: 'plugin', description, category: categorizeSkill(name, description), pluginKey, enabled });
+                      skills.push({ name, source: 'plugin', description, category: categorizeSkill(name, description), pluginKey, enabled, path: sf, sourceUrl: sourceUrlFor(sf, origins) });
                     }
                   }
                 } catch { /* ignore */ }

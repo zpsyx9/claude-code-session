@@ -847,11 +847,26 @@ body::before {
   color: var(--text-dim);
   line-height: 1.3;
   margin-top: 1px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
+.skill-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(320px, calc(100vw - 8px));
+  padding: 4px 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--vscode-editorHoverWidget-foreground, var(--text-bright));
+  background: var(--vscode-editorHoverWidget-background, #252526);
+  border: 1px solid var(--vscode-editorHoverWidget-border, rgba(255,255,255,0.12));
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.skill-tooltip[hidden] { display: none; }
 .skill-badge {
   font-size: var(--fs-2xs);
   font-weight: 700;

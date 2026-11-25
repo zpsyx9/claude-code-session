@@ -234,6 +234,11 @@ export class Panel implements vscode.WebviewViewProvider {
         vscode.window.showInformationMessage(`Copied ${msg.name} to clipboard`);
       }
     }
+    // Only open paths the host itself reported, never an arbitrary path from the webview.
+    if (msg.type === 'openSkillFile' && typeof msg.path === 'string'
+        && this.lastEnvData?.skills.some(s => s.path === msg.path)) {
+      vscode.window.showTextDocument(vscode.Uri.file(msg.path));
+    }
     if (msg.type === 'togglePlugin' && typeof msg.pluginKey === 'string' && typeof msg.enabled === 'boolean') {
       this.togglePlugin(msg.pluginKey, msg.enabled);
     }

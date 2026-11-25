@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { SessionManager } from './sessionManager';
 import { Panel } from './panel';
+import { normPath } from './session/claudeEnvironment';
 
 const TOKEN_WINDOW_HOURS = 24;
 const CLAUDE_UPDATE_KEY = 'lastClaudeUpdate';
@@ -71,12 +72,40 @@ export function activate(context: vscode.ExtensionContext) {
   usageTick();
   const usageTimer = setInterval(usageTick, 60_000);
 
+  // Downloaded SKILL.md files get a "Source: <url>" CodeLens on line 1; the files themselves are
+  // left untouched because plugin updates overwrite the cache.
+  const skillSourceUrls = new Map<string, string>();
+  const skillLensChanged = new vscode.EventEmitter<void>();
+  context.subscriptions.push(
+    skillLensChanged,
+    vscode.languages.registerCodeLensProvider({ scheme: 'file', pattern: '**/SKILL.md' }, {
+      onDidChangeCodeLenses: skillLensChanged.event,
+      provideCodeLenses(doc) {
+        const url = skillSourceUrls.get(normPath(doc.uri.fsPath));
+        if (!url) { return []; }
+        return [new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), {
+          title: `Source: ${url}`,
+          tooltip: 'Open the source in the browser',
+          command: 'vscode.open',
+          arguments: [vscode.Uri.parse(url)],
+        })];
+      },
+    })
+  );
+
   const envTick = () => {
+    const skills = sessionManager!.getSkills(workspaceRoots()[0]);
+    const before = JSON.stringify([...skillSourceUrls]);
+    skillSourceUrls.clear();
+    for (const s of skills) {
+      if (s.sourceUrl) { skillSourceUrls.set(normPath(s.path), s.sourceUrl); }
+    }
+    if (JSON.stringify([...skillSourceUrls]) !== before) { skillLensChanged.fire(); }
     panel!.sendEnvData({
       recentFiles:    sessionManager!.getRecentFiles(),
       mcpServers:     sessionManager!.getMcpServers(),
       recentSessions: sessionManager!.getRecentSessions(),
-      skills:         sessionManager!.getSkills(workspaceRoots()[0]),
+      skills,
       clis:           sessionManager!.getInstalledClis(),
     });
     panel!.sendProjectInfo();
